@@ -25,10 +25,13 @@ A full-stack to-do list with a **React** frontend (Vite) and an **Express** REST
 │       └── components/     Header, TaskForm, TaskList, TaskItem, FilterBar, ProgressRing
 └── server/                 Express API
     ├── src/
-    │   ├── app.js          Routes and validation
+    │   ├── app.js          Express app setup (CORS, JSON parsing, routing)
+    │   ├── routes/tasks.js Task endpoints
+    │   ├── validation.js   Request body validation
+    │   ├── errors.js       Error types and error-handling middleware
     │   ├── store.js        JSON-file task storage
     │   └── index.js        Server entry point
-    └── test/api.test.js    API tests (node:test + supertest)
+    └── test/               API tests (node:test + supertest)
 ```
 
 ## Getting started
@@ -129,8 +132,8 @@ All endpoints are under `/api` and use JSON.
 | `GET`    | `/tasks`                     |                                        | List all tasks             |
 | `GET`    | `/tasks/:id`                 |                                        | Get one task               |
 | `POST`   | `/tasks`                     | `{ "title": "Buy milk" }`              | Create a task              |
-| `PUT`    | `/tasks/:id`                 | `{ "title": string, "completed": boolean }` | Replace a task (used to toggle and rename) |
-| `PATCH`  | `/tasks/:id`                 | `{ "title"?: string, "completed"?: boolean }` | Change only some fields |
+| `PUT`    | `/tasks/:id`                 | `{ "title"?: string, "completed"?: boolean }` | Update a task: toggle complete, edit the text, or both |
+| `PATCH`  | `/tasks/:id`                 | same as `PUT`                          | Same as `PUT`              |
 | `DELETE` | `/tasks/:id`                 |                                        | Delete a task              |
 | `DELETE` | `/tasks?completed=true`      |                                        | Delete all completed tasks |
 | `GET`    | `/health`                    |                                        | Health check               |
@@ -147,4 +150,19 @@ A task looks like this:
 }
 ```
 
-Titles are trimmed and must be 1–200 characters. Invalid requests return `400` with `{ "error": "..." }`, and unknown IDs return `404`.
+Titles are trimmed and must be 1–200 characters. `POST` returns `201` with a `Location` header pointing at the new task.
+
+### Error responses
+
+Every error is JSON in the form `{ "error": "Human-readable message" }`:
+
+| Status | When |
+| ------ | ---- |
+| `400`  | Invalid input: missing or empty title, `completed` not true/false, unknown fields, or malformed JSON |
+| `404`  | No task with that ID, or an unknown route |
+| `405`  | Wrong method for a path, e.g. `POST /api/tasks/:id` (the `Allow` header lists valid methods) |
+| `413`  | Request body larger than 10 KB |
+| `415`  | Body sent without `Content-Type: application/json` |
+| `500`  | Unexpected server error (details are logged on the server, not sent to the client) |
+
+The server code is split into `server/src/routes/tasks.js` (routes), `validation.js` (input checks) and `errors.js` (error classes and the error-handling middleware).
