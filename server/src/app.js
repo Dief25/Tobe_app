@@ -82,7 +82,10 @@ export function createApp(store) {
     res.status(204).end();
   }));
 
+  // Public URLs are /api/*. Some hosts (e.g. a proxy or Vercel rewrite)
+  // may forward requests with the /api prefix removed, so accept both.
   app.use('/api', router);
+  app.use(router);
 
   app.use('/api', (_req, res) => res.status(404).json({ error: 'Not found.' }));
 

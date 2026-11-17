@@ -14,7 +14,7 @@ export function useTasks() {
     api
       .list()
       .then(setTasks)
-      .catch(() => setError('Could not reach the server. Is the API running?'))
+      .catch((err) => setError(`Couldn't load tasks: ${err.message}`))
       .finally(() => setLoading(false));
   }, []);
 
