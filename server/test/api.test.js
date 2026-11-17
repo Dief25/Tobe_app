@@ -94,9 +94,22 @@ test('PUT replaces a task (toggle and rename)', async () => {
   assert.equal(res.body.completed, false);
 });
 
-test('PUT requires both fields and an existing task', async () => {
+test('PUT toggles complete or edits text on their own', async () => {
+  const { body: task } = await request(app).post('/api/tasks').send({ title: 'Draft' });
+  let res = await request(app).put(`/api/tasks/${task.id}`).send({ completed: true }).expect(200);
+  assert.equal(res.body.completed, true);
+  assert.equal(res.body.title, 'Draft');
+  res = await request(app).put(`/api/tasks/${task.id}`).send({ title: 'Final' }).expect(200);
+  assert.equal(res.body.title, 'Final');
+  assert.equal(res.body.completed, true);
+});
+
+test('PUT validates the body and the task id', async () => {
   const { body: task } = await request(app).post('/api/tasks').send({ title: 'X' });
-  await request(app).put(`/api/tasks/${task.id}`).send({ completed: true }).expect(400);
-  await request(app).put(`/api/tasks/${task.id}`).send({ title: 'X' }).expect(400);
-  await request(app).put('/api/tasks/missing').send({ title: 'X', completed: true }).expect(404);
+  await request(app).put(`/api/tasks/${task.id}`).send({}).expect(400);
+  await request(app).put(`/api/tasks/${task.id}`).send({ completed: 'yes' }).expect(400);
+  await request(app).put(`/api/tasks/${task.id}`).send({ title: '   ' }).expect(400);
+  const res = await request(app).put(`/api/tasks/${task.id}`).send({ done: true }).expect(400);
+  assert.match(res.body.error, /Unknown field/);
+  await request(app).put('/api/tasks/missing').send({ completed: true }).expect(404);
 });

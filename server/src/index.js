@@ -3,7 +3,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { existsSync } from 'node:fs';
 import express from 'express';
-import { createApp, notFound } from './app.js';
+import { createApp } from './app.js';
+import { errorHandler, notFound } from './errors.js';
 import { createStore } from './store.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -28,6 +29,7 @@ if (!onVercel && existsSync(clientDist)) {
 
 // Anything else gets a JSON 404 naming the path Express received.
 app.use(notFound);
+app.use(errorHandler);
 
 // Vercel runs the exported app itself; locally we start a server.
 if (!onVercel) {
