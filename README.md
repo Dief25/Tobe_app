@@ -10,7 +10,7 @@ A full-stack to-do list with a **React** frontend (Vite) and an **Express** REST
 - Filter by **All / Active / Completed**, with a progress ring and a "Clear completed" action
 - Changes appear instantly and are rolled back if the server rejects them
 - A light blue theme with rounded corners, plus a dark variant (follows your system setting), a responsive layout, and keyboard-accessible controls
-- Tasks are saved to a JSON file on the server, so there's no database to set up
+- Tasks are saved in a Supabase (PostgreSQL) database in production, or a local JSON file when no database is configured
 
 ## Project structure
 
@@ -29,8 +29,10 @@ A full-stack to-do list with a **React** frontend (Vite) and an **Express** REST
     │   ├── routes/tasks.js Task endpoints
     │   ├── validation.js   Request body validation
     │   ├── errors.js       Error types and error-handling middleware
-    │   ├── store.js        JSON-file task storage
+    │   ├── store.js        JSON-file task storage (local fallback)
+    │   ├── supabaseStore.js  Supabase (PostgreSQL) task storage
     │   └── index.js        Server entry point
+    ├── supabase/schema.sql SQL that creates the tasks table in Supabase
     └── test/               API tests (node:test + supertest)
 ```
 
@@ -107,7 +109,7 @@ and open port **4000** from the **Ports** tab.
 
 The browser calls the API at the same-origin path `/api`, so no extra URLs or environment variables are needed. On Vercel, the Express app is exported from `server/src/index.js` instead of calling `listen()`.
 
-> **Storage warning:** On Vercel, tasks are saved to the function's temporary directory. They are **not durable**: they can disappear when the function restarts and may differ between instances. Back the store (`server/src/store.js`) with a database before relying on the deployed app.
+> **Storage:** Set up Supabase (next section) so tasks are saved permanently. Without it, the deployed API falls back to a temporary file, and tasks can disappear when Vercel restarts the function.
 
 To test both services together locally the way Vercel runs them:
 
@@ -115,12 +117,52 @@ To test both services together locally the way Vercel runs them:
 npx vercel dev
 ```
 
+### Database: Supabase (PostgreSQL)
+
+The server stores tasks in Supabase when `SUPABASE_URL` and a secret key are set. Otherwise it uses a local JSON file. The API and the React app work the same either way.
+
+**1. Create the table.** In your Supabase project, open **SQL Editor** → **New query**, paste the contents of [`server/supabase/schema.sql`](server/supabase/schema.sql), and click **Run**. This creates:
+
+| Column       | Type                       | Notes                               |
+| ------------ | -------------------------- | ----------------------------------- |
+| `id`         | `bigint`                   | Primary key, auto-increment         |
+| `text`       | `text`                     | Required, 1–200 characters          |
+| `completed`  | `boolean`                  | Defaults to `false`                 |
+| `created_at` | `timestamp with time zone` | Defaults to `now()`                 |
+
+It also turns on **row level security** with no policies, so the public (anon/publishable) key can't read or change tasks. Only the server, using the secret key, can.
+
+**2. Copy your project's URL and secret key.** In Supabase, click **Connect** (or open **Project Settings** → **Data API**) to find the **Project URL**. Under **Project Settings** → **API Keys**, copy a **secret** key (`sb_secret_…`), or the legacy **`service_role`** key.
+
+> Keep the secret key on the server only. Never put it in a `VITE_` variable or in frontend code.
+
+**3. Add them to Vercel.** In your Vercel project, open **Settings** → **Environment Variables** and add:
+
+| Key                         | Value                         |
+| --------------------------- | ----------------------------- |
+| `SUPABASE_URL`              | Your Project URL              |
+| `SUPABASE_SERVICE_ROLE_KEY` | Your secret / service_role key |
+
+Apply them to **Production and Preview**, then **redeploy** (variables only take effect on a new deployment).
+
+**4. Check it.** Open `https://<your-app>.vercel.app/api/health`. It should show `{"status":"ok","storage":"supabase"}`. If it says `"storage":"file"`, the variables aren't set for that deployment.
+
+**Running locally against Supabase:** set the same two variables before starting the server, for example:
+
+```bash
+SUPABASE_URL=https://<project>.supabase.co SUPABASE_SERVICE_ROLE_KEY=<secret key> npm run dev
+```
+
+**Integration tests:** `server/test/supabase.integration.test.js` runs the API against a real Supabase database. It is skipped unless `SUPABASE_TEST_URL` and `SUPABASE_TEST_SERVICE_KEY` are set (plus `SUPABASE_TEST_ANON_KEY` for the row-level-security check). Use a throwaway project: the test deletes completed tasks.
+
 ### Configuration
 
 | Variable    | Default                  | Description                       |
 | ----------- | ------------------------ | --------------------------------- |
 | `PORT`      | `4000`                   | API server port                   |
-| `DATA_FILE` | `server/data/tasks.json` | Where tasks are saved             |
+| `SUPABASE_URL` | —                      | Supabase Project URL. With a secret key, enables database storage |
+| `SUPABASE_SERVICE_ROLE_KEY` | —         | Supabase secret (`sb_secret_…`) or `service_role` key. `SUPABASE_SECRET_KEY` also works |
+| `DATA_FILE` | `server/data/tasks.json` | Where tasks are saved when Supabase isn't configured |
 | `VITE_API_URL` | `/api`                | Frontend only: base URL of the API, read when the client is built. Leave unset when the API is on the same domain (dev proxy, `npm start`, Vercel). See `client/.env.example`. |
 
 ## API
@@ -136,19 +178,20 @@ All endpoints are under `/api` and use JSON.
 | `PATCH`  | `/tasks/:id`                 | same as `PUT`                          | Same as `PUT`              |
 | `DELETE` | `/tasks/:id`                 |                                        | Delete a task              |
 | `DELETE` | `/tasks?completed=true`      |                                        | Delete all completed tasks |
-| `GET`    | `/health`                    |                                        | Health check               |
+| `GET`    | `/health`                    |                                        | Health check; `storage` shows `supabase` or `file` |
 
 A task looks like this:
 
 ```json
 {
-  "id": "b3f1c6e2-…",
+  "id": 42,
   "title": "Buy milk",
   "completed": false,
-  "createdAt": "2026-11-17T16:30:12.286Z",
-  "updatedAt": "2026-11-17T16:30:12.286Z"
+  "createdAt": "2026-11-17T16:30:12.286Z"
 }
 ```
+
+With Supabase, `id` is a number. With the local JSON file it's a UUID string, and tasks also include `updatedAt`.
 
 Titles are trimmed and must be 1–200 characters. `POST` returns `201` with a `Location` header pointing at the new task.
 

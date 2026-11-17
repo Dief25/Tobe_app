@@ -36,6 +36,8 @@ export function createStore({ filePath = null } = {}) {
   }
 
   return {
+    kind: filePath ? 'file' : 'memory',
+
     async list() {
       return [...(await load())];
     },
