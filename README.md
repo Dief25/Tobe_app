@@ -18,7 +18,8 @@ A full-stack to-do list with a **React** frontend (Vite) and an **Express** REST
 ├── client/                 React app (Vite)
 │   └── src/
 │       ├── App.jsx         Page layout, filtering, and counts
-│       ├── useTasks.js     Task state and server sync
+│       ├── TasksContext.jsx  Shares task state and API actions with all components
+│       ├── useTasks.js     Task state and server sync (loading, errors, rollback)
 │       ├── api.js          Fetch wrapper for the REST API
 │       ├── styles.css      Design tokens and styles
 │       └── components/     Header, TaskForm, TaskList, TaskItem, FilterBar, ProgressRing
@@ -117,6 +118,7 @@ npx vercel dev
 | ----------- | ------------------------ | --------------------------------- |
 | `PORT`      | `4000`                   | API server port                   |
 | `DATA_FILE` | `server/data/tasks.json` | Where tasks are saved             |
+| `VITE_API_URL` | `/api`                | Frontend only: base URL of the API, read when the client is built. Leave unset when the API is on the same domain (dev proxy, `npm start`, Vercel). See `client/.env.example`. |
 
 ## API
 
@@ -127,7 +129,8 @@ All endpoints are under `/api` and use JSON.
 | `GET`    | `/tasks`                     |                                        | List all tasks             |
 | `GET`    | `/tasks/:id`                 |                                        | Get one task               |
 | `POST`   | `/tasks`                     | `{ "title": "Buy milk" }`              | Create a task              |
-| `PATCH`  | `/tasks/:id`                 | `{ "title"?: string, "completed"?: boolean }` | Edit or complete a task |
+| `PUT`    | `/tasks/:id`                 | `{ "title": string, "completed": boolean }` | Replace a task (used to toggle and rename) |
+| `PATCH`  | `/tasks/:id`                 | `{ "title"?: string, "completed"?: boolean }` | Change only some fields |
 | `DELETE` | `/tasks/:id`                 |                                        | Delete a task              |
 | `DELETE` | `/tasks?completed=true`      |                                        | Delete all completed tasks |
 | `GET`    | `/health`                    |                                        | Health check               |

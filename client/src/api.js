@@ -1,11 +1,15 @@
-const BASE = '/api';
+// Base URL of the Express API. Set VITE_API_URL to point at a different
+// server (e.g. http://localhost:4000/api); by default the API is expected
+// on the same origin under /api (Vite's dev proxy, `npm start`, Vercel).
+export const API_BASE_URL = (import.meta.env.VITE_API_URL || '/api').replace(/\/+$/, '');
 
-async function request(path, options = {}) {
+async function request(path, { body, ...options } = {}) {
   let res;
   try {
-    res = await fetch(`${BASE}${path}`, {
-      headers: { 'Content-Type': 'application/json' },
+    res = await fetch(`${API_BASE_URL}${path}`, {
       ...options,
+      headers: body ? { 'Content-Type': 'application/json' } : undefined,
+      body: body ? JSON.stringify(body) : undefined,
     });
   } catch {
     throw new Error('Could not reach the server. Check your connection and try again.');
@@ -16,16 +20,21 @@ async function request(path, options = {}) {
   const data = isJson ? await res.json().catch(() => null) : null;
 
   if (!res.ok) throw new Error(data?.error || `The server returned an error (HTTP ${res.status}).`);
-  // A non-JSON success usually means /api was answered by the frontend
-  // (e.g. index.html) instead of the API, i.e. the API route isn't wired up.
-  if (!isJson) throw new Error('The API did not respond. /api requests are not reaching the server.');
+  // A non-JSON success usually means the request was answered by the
+  // frontend (e.g. index.html) instead of the API.
+  if (!isJson) throw new Error(`The API did not respond. Requests to ${API_BASE_URL} are not reaching the server.`);
   return data;
 }
 
 export const api = {
+  /** GET /tasks — all tasks, newest first */
   list: () => request('/tasks'),
-  create: (title) => request('/tasks', { method: 'POST', body: JSON.stringify({ title }) }),
-  update: (id, changes) => request(`/tasks/${id}`, { method: 'PATCH', body: JSON.stringify(changes) }),
+  /** POST /tasks — create a task */
+  create: (title) => request('/tasks', { method: 'POST', body: { title } }),
+  /** PUT /tasks/:id — replace a task's title and completed state */
+  replace: (id, { title, completed }) => request(`/tasks/${id}`, { method: 'PUT', body: { title, completed } }),
+  /** DELETE /tasks/:id */
   remove: (id) => request(`/tasks/${id}`, { method: 'DELETE' }),
+  /** DELETE /tasks?completed=true */
   clearCompleted: () => request('/tasks?completed=true', { method: 'DELETE' }),
 };

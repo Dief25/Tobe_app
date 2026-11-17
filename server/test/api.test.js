@@ -84,3 +84,19 @@ test('serves the API with or without the /api prefix', async () => {
   const res = await request(app).get('/api/tasks').expect(200);
   assert.equal(res.body[0].title, 'No prefix');
 });
+
+test('PUT replaces a task (toggle and rename)', async () => {
+  const { body: task } = await request(app).post('/api/tasks').send({ title: 'Original' });
+  let res = await request(app).put(`/api/tasks/${task.id}`).send({ title: 'Original', completed: true }).expect(200);
+  assert.equal(res.body.completed, true);
+  res = await request(app).put(`/api/tasks/${task.id}`).send({ title: '  Renamed ', completed: false }).expect(200);
+  assert.equal(res.body.title, 'Renamed');
+  assert.equal(res.body.completed, false);
+});
+
+test('PUT requires both fields and an existing task', async () => {
+  const { body: task } = await request(app).post('/api/tasks').send({ title: 'X' });
+  await request(app).put(`/api/tasks/${task.id}`).send({ completed: true }).expect(400);
+  await request(app).put(`/api/tasks/${task.id}`).send({ title: 'X' }).expect(400);
+  await request(app).put('/api/tasks/missing').send({ title: 'X', completed: true }).expect(404);
+});

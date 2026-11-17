@@ -1,74 +1,129 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { api } from './api.js';
 
+// The server returns tasks newest first; keep that order when restoring.
+const newestFirst = (a, b) => b.createdAt.localeCompare(a.createdAt);
+const restore = (list, removed) =>
+  [...list.filter((t) => !removed.some((r) => r.id === t.id)), ...removed].sort(newestFirst);
+
 /**
- * Owns the task list state. Edits, toggles and deletes are applied
- * optimistically and rolled back if the server rejects them.
+ * Task state synced with the API. Toggles, renames and deletes show up
+ * immediately and are undone if the server rejects them.
  */
 export function useTasks() {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [loadError, setLoadError] = useState(null);
+  const [error, setError] = useState(null); // last failed action
+  const [adding, setAdding] = useState(false);
+  const [pendingIds, setPendingIds] = useState(() => new Set());
 
-  useEffect(() => {
-    api
-      .list()
-      .then(setTasks)
-      .catch((err) => setError(`Couldn't load tasks: ${err.message}`))
-      .finally(() => setLoading(false));
-  }, []);
-
-  // Apply a local change now; restore the previous list if the request fails.
-  const optimistic = useCallback(async (apply, send) => {
-    let previous;
-    setTasks((current) => {
-      previous = current;
-      return apply(current);
+  const markPending = (id, on) =>
+    setPendingIds((current) => {
+      const next = new Set(current);
+      on ? next.add(id) : next.delete(id);
+      return next;
     });
+
+  // GET /api/tasks
+  const loadTasks = useCallback(async () => {
+    setLoading(true);
+    setLoadError(null);
     try {
-      setError(null);
-      return await send();
+      setTasks(await api.list());
     } catch (err) {
-      setTasks(previous);
-      setError(err.message);
-      return null;
+      setLoadError(err.message);
+    } finally {
+      setLoading(false);
     }
   }, []);
 
+  // POST /api/tasks
   const addTask = useCallback(async (title) => {
+    setAdding(true);
+    setError(null);
     try {
-      setError(null);
       const task = await api.create(title);
-      setTasks((current) => [task, ...current]);
+      setTasks((list) => [task, ...list]);
       return true;
     } catch (err) {
-      setError(err.message);
+      setError(`Couldn't add the task: ${err.message}`);
       return false;
+    } finally {
+      setAdding(false);
     }
   }, []);
 
-  const updateTask = useCallback(
-    (id, changes) =>
-      optimistic(
-        (list) => list.map((t) => (t.id === id ? { ...t, ...changes } : t)),
-        async () => {
-          const saved = await api.update(id, changes);
-          setTasks((list) => list.map((t) => (t.id === id ? saved : t)));
-          return saved;
-        },
-      ),
-    [optimistic],
+  // PUT /api/tasks/:id with the task's full new state.
+  const saveTask = useCallback(async (original, next, failMessage) => {
+    setError(null);
+    markPending(original.id, true);
+    setTasks((list) => list.map((t) => (t.id === original.id ? { ...t, ...next } : t)));
+    try {
+      const saved = await api.replace(original.id, next);
+      setTasks((list) => list.map((t) => (t.id === saved.id ? saved : t)));
+    } catch (err) {
+      setTasks((list) => list.map((t) => (t.id === original.id ? original : t)));
+      setError(`${failMessage}: ${err.message}`);
+    } finally {
+      markPending(original.id, false);
+    }
+  }, []);
+
+  const toggleTask = useCallback(
+    (task) => saveTask(task, { title: task.title, completed: !task.completed }, "Couldn't update the task"),
+    [saveTask],
   );
 
-  const deleteTask = useCallback(
-    (id) => optimistic((list) => list.filter((t) => t.id !== id), () => api.remove(id)),
-    [optimistic],
+  const renameTask = useCallback(
+    (task, title) => saveTask(task, { title, completed: task.completed }, "Couldn't rename the task"),
+    [saveTask],
   );
 
-  const clearCompleted = useCallback(
-    () => optimistic((list) => list.filter((t) => !t.completed), () => api.clearCompleted()),
-    [optimistic],
-  );
+  // DELETE /api/tasks/:id
+  const deleteTask = useCallback(async (task) => {
+    setError(null);
+    markPending(task.id, true);
+    setTasks((list) => list.filter((t) => t.id !== task.id));
+    try {
+      await api.remove(task.id);
+    } catch (err) {
+      setTasks((list) => restore(list, [task]));
+      setError(`Couldn't delete the task: ${err.message}`);
+    } finally {
+      markPending(task.id, false);
+    }
+  }, []);
 
-  return { tasks, loading, error, dismissError: () => setError(null), addTask, updateTask, deleteTask, clearCompleted };
+  // DELETE /api/tasks?completed=true
+  const clearCompleted = useCallback(async () => {
+    setError(null);
+    let removed = [];
+    setTasks((list) => {
+      removed = list.filter((t) => t.completed);
+      return list.filter((t) => !t.completed);
+    });
+    try {
+      await api.clearCompleted();
+    } catch (err) {
+      setTasks((list) => restore(list, removed));
+      setError(`Couldn't clear completed tasks: ${err.message}`);
+    }
+  }, []);
+
+  return {
+    tasks,
+    loading,
+    loadError,
+    error,
+    adding,
+    isPending: (id) => pendingIds.has(id),
+    dismissError: () => setError(null),
+    loadTasks,
+    addTask,
+    toggleTask,
+    renameTask,
+    deleteTask,
+    clearCompleted,
+  };
 }
