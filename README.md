@@ -9,7 +9,7 @@ A full-stack to-do list with a **React** frontend (Vite) and an **Express** REST
 - Edit by double-clicking a task or using the pencil button (Enter saves, Esc cancels)
 - Filter by **All / Active / Completed**, with a progress ring and a "Clear completed" action
 - Changes appear instantly and are rolled back if the server rejects them
-- Light and dark themes (follows your system setting), a responsive layout, and keyboard-accessible controls
+- A light blue theme with rounded corners, plus a dark variant (follows your system setting), a responsive layout, and keyboard-accessible controls
 - Tasks are saved to a JSON file on the server, so there's no database to set up
 
 ## Project structure
@@ -21,7 +21,7 @@ A full-stack to-do list with a **React** frontend (Vite) and an **Express** REST
 │       ├── useTasks.js     Task state and server sync
 │       ├── api.js          Fetch wrapper for the REST API
 │       ├── styles.css      Design tokens and styles
-│       └── components/     TaskForm, TaskList, TaskItem, FilterBar, ProgressRing
+│       └── components/     Header, TaskForm, TaskList, TaskItem, FilterBar, ProgressRing
 └── server/                 Express API
     ├── src/
     │   ├── app.js          Routes and validation

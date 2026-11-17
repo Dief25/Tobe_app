@@ -3,7 +3,7 @@ import { useTasks } from './useTasks.js';
 import TaskForm from './components/TaskForm.jsx';
 import TaskList from './components/TaskList.jsx';
 import FilterBar from './components/FilterBar.jsx';
-import ProgressRing from './components/ProgressRing.jsx';
+import Header from './components/Header.jsx';
 
 const FILTERS = {
   all: () => true,
@@ -22,20 +22,7 @@ export default function App() {
   return (
     <div className="page">
       <main className="card">
-        <header className="header">
-          <div>
-            <p className="eyebrow">{new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}</p>
-            <h1>Tobe</h1>
-            <p className="subtitle">
-              {tasks.length === 0
-                ? 'Nothing planned yet.'
-                : activeCount === 0
-                  ? 'All done. Nice work!'
-                  : `${activeCount} task${activeCount === 1 ? '' : 's'} to go`}
-            </p>
-          </div>
-          <ProgressRing done={completedCount} total={tasks.length} />
-        </header>
+        <Header total={tasks.length} completed={completedCount} />
 
         <TaskForm onAdd={addTask} />
 
