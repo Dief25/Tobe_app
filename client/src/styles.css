@@ -211,6 +211,17 @@ h1 { margin: 4px 0; font-size: 32px; font-weight: 700; letter-spacing: -0.03em; 
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
+.spinner.small { width: 14px; height: 14px; border-width: 2px; border-color: rgba(255, 255, 255, 0.4); border-top-color: currentColor; }
+.empty .spinner + .empty-hint { margin-top: 12px; }
+.empty-icon.error { background: var(--danger-soft); color: var(--danger); }
+.load-error .button { margin: 16px auto 0; height: 40px; }
+.button.secondary { background: var(--primary-soft); color: var(--primary); }
+.button.secondary:hover { background: var(--border); }
+
+/* Saving state for a task row */
+.task.saving { opacity: 0.6; }
+.task.saving .checkbox, .task.saving .icon-button { cursor: progress; }
+
 /* Footer */
 .footer { display: flex; justify-content: flex-end; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
 .link-button { background: none; border: none; color: var(--muted); font-size: 14px; padding: 6px 12px; border-radius: var(--radius-pill); }

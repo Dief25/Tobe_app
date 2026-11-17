@@ -1,17 +1,16 @@
 import { useState } from 'react';
+import { useTasksContext } from '../TasksContext.jsx';
 
-export default function TaskForm({ onAdd }) {
+export default function TaskForm() {
+  const { addTask, adding } = useTasksContext();
   const [title, setTitle] = useState('');
-  const [submitting, setSubmitting] = useState(false);
 
   async function handleSubmit(e) {
     e.preventDefault();
     const trimmed = title.trim();
-    if (!trimmed || submitting) return;
-    setSubmitting(true);
-    const ok = await onAdd(trimmed);
-    setSubmitting(false);
-    if (ok) setTitle('');
+    if (!trimmed || adding) return;
+    // POST /api/tasks; keep the text if it fails so it can be retried.
+    if (await addTask(trimmed)) setTitle('');
   }
 
   return (
@@ -26,11 +25,15 @@ export default function TaskForm({ onAdd }) {
         aria-label="New task"
         autoFocus
       />
-      <button className="button primary" type="submit" disabled={!title.trim() || submitting}>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden="true">
-          <path d="M12 5v14M5 12h14" />
-        </svg>
-        Add
+      <button className="button primary" type="submit" disabled={!title.trim() || adding} aria-busy={adding}>
+        {adding ? (
+          <span className="spinner small" aria-hidden="true" />
+        ) : (
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden="true">
+            <path d="M12 5v14M5 12h14" />
+          </svg>
+        )}
+        {adding ? 'Adding…' : 'Add'}
       </button>
     </form>
   );

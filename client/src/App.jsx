@@ -1,21 +1,14 @@
-import { useMemo, useState } from 'react';
-import { useTasks } from './useTasks.js';
-import TaskForm from './components/TaskForm.jsx';
-import TaskList from './components/TaskList.jsx';
-import FilterBar from './components/FilterBar.jsx';
+import { useState } from 'react';
+import { TasksProvider, useTasksContext } from './TasksContext.jsx';
 import Header from './components/Header.jsx';
+import TaskForm from './components/TaskForm.jsx';
+import FilterBar from './components/FilterBar.jsx';
+import TaskList from './components/TaskList.jsx';
 
-const FILTERS = {
-  all: () => true,
-  active: (t) => !t.completed,
-  completed: (t) => t.completed,
-};
-
-export default function App() {
-  const { tasks, loading, error, dismissError, addTask, updateTask, deleteTask, clearCompleted } = useTasks();
+function TodoApp() {
+  const { tasks, error, dismissError, clearCompleted } = useTasksContext();
   const [filter, setFilter] = useState('all');
 
-  const visible = useMemo(() => tasks.filter(FILTERS[filter]), [tasks, filter]);
   const completedCount = tasks.filter((t) => t.completed).length;
   const activeCount = tasks.length - completedCount;
 
@@ -24,7 +17,7 @@ export default function App() {
       <main className="card">
         <Header total={tasks.length} completed={completedCount} />
 
-        <TaskForm onAdd={addTask} />
+        <TaskForm />
 
         {error && (
           <div className="alert" role="alert">
@@ -41,11 +34,7 @@ export default function App() {
           />
         )}
 
-        {loading ? (
-          <div className="empty"><span className="spinner" aria-label="Loading" /></div>
-        ) : (
-          <TaskList tasks={visible} filter={filter} onUpdate={updateTask} onDelete={deleteTask} />
-        )}
+        <TaskList filter={filter} />
 
         {completedCount > 0 && (
           <footer className="footer">
@@ -56,5 +45,13 @@ export default function App() {
         )}
       </main>
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <TasksProvider>
+      <TodoApp />
+    </TasksProvider>
   );
 }
