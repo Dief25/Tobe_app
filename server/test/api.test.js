@@ -113,3 +113,49 @@ test('PUT validates the body and the task id', async () => {
   assert.match(res.body.error, /Unknown field/);
   await request(app).put('/api/tasks/missing').send({ completed: true }).expect(404);
 });
+
+test('tasks have a description and priority, with defaults', async () => {
+  let res = await request(app).post('/api/tasks').send({ title: 'Plain' }).expect(201);
+  assert.equal(res.body.description, '');
+  assert.equal(res.body.priority, 'medium');
+
+  res = await request(app).post('/api/tasks').send({ title: 'Taxes', description: '  Before Friday ', priority: 'urgent' }).expect(201);
+  assert.equal(res.body.description, 'Before Friday');
+  assert.equal(res.body.priority, 'urgent');
+
+  res = await request(app).put(`/api/tasks/${res.body.id}`).send({ description: '', priority: 'low' }).expect(200);
+  assert.deepEqual([res.body.title, res.body.description, res.body.priority], ['Taxes', '', 'low']);
+});
+
+test('rejects invalid description and priority', async () => {
+  await request(app).post('/api/tasks').send({ title: 'X', priority: 'critical' }).expect(400);
+  await request(app).post('/api/tasks').send({ title: 'X', description: 5 }).expect(400);
+  await request(app).post('/api/tasks').send({ title: 'X', description: 'a'.repeat(501) }).expect(400);
+  const { body: task } = await request(app).post('/api/tasks').send({ title: 'X' });
+  await request(app).put(`/api/tasks/${task.id}`).send({ priority: 'HIGH' }).expect(400);
+});
+
+test('PUT /api/tasks/order saves a new order', async () => {
+  const ids = [];
+  for (const title of ['A', 'B', 'C']) ids.push((await request(app).post('/api/tasks').send({ title })).body.id);
+  // Newest first: C, B, A. Move A to the top.
+  const [a, b, c] = ids;
+  await request(app).put('/api/tasks/order').send({ ids: [a, c, b] }).expect(204);
+  let list = (await request(app).get('/api/tasks')).body.map((t) => t.title);
+  assert.deepEqual(list, ['A', 'C', 'B']);
+
+  // A new task still goes on top.
+  await request(app).post('/api/tasks').send({ title: 'D' });
+  list = (await request(app).get('/api/tasks')).body.map((t) => t.title);
+  assert.deepEqual(list, ['D', 'A', 'C', 'B']);
+});
+
+test('reordering requires every current task exactly once', async () => {
+  const a = (await request(app).post('/api/tasks').send({ title: 'A' })).body.id;
+  const b = (await request(app).post('/api/tasks').send({ title: 'B' })).body.id;
+  await request(app).put('/api/tasks/order').send({ ids: [a] }).expect(409);
+  await request(app).put('/api/tasks/order').send({ ids: [a, b, 'ghost'] }).expect(409);
+  await request(app).put('/api/tasks/order').send({ ids: [a, a] }).expect(400);
+  await request(app).put('/api/tasks/order').send({ ids: 'a,b' }).expect(400);
+  await request(app).get('/api/tasks/order').expect(405);
+});

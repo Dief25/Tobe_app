@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 
-const COLUMNS = 'id, text, completed, created_at';
+const COLUMNS = 'id, text, description, priority, completed, created_at';
 const MAX_BIGINT = 9223372036854775807n;
 
 // Database row -> API task. The API (and the React app) use `title` and
@@ -8,6 +8,8 @@ const MAX_BIGINT = 9223372036854775807n;
 const toTask = (row) => ({
   id: row.id,
   title: row.text,
+  description: row.description ?? '',
+  priority: row.priority ?? 'medium',
   completed: row.completed,
   createdAt: new Date(row.created_at).toISOString(),
 });
@@ -39,12 +41,14 @@ export function createSupabaseStore({ url, key, client } = {}) {
   return {
     kind: 'supabase',
 
+    // Highest position first. New tasks default to a high position (the
+    // current time), so they appear at the top until the list is reordered.
     async list() {
       const rows = check(
         'list',
         await tasks()
           .select(COLUMNS)
-          .order('created_at', { ascending: false })
+          .order('position', { ascending: false })
           .order('id', { ascending: false }),
       );
       return rows.map(toTask);
@@ -56,10 +60,10 @@ export function createSupabaseStore({ url, key, client } = {}) {
       return row ? toTask(row) : null;
     },
 
-    async create({ title }) {
+    async create({ title, description = '', priority = 'medium' }) {
       const row = check(
         'create',
-        await tasks().insert([{ text: title, completed: false }]).select(COLUMNS).single(),
+        await tasks().insert([{ text: title, description, priority, completed: false }]).select(COLUMNS).single(),
       );
       return toTask(row);
     },
@@ -68,6 +72,8 @@ export function createSupabaseStore({ url, key, client } = {}) {
       if (!isValidId(id)) return null;
       const patch = {};
       if (changes.title !== undefined) patch.text = changes.title;
+      if (changes.description !== undefined) patch.description = changes.description;
+      if (changes.priority !== undefined) patch.priority = changes.priority;
       if (changes.completed !== undefined) patch.completed = changes.completed;
       const row = check('update', await tasks().update(patch).eq('id', id).select(COLUMNS).maybeSingle());
       return row ? toTask(row) : null;
@@ -77,6 +83,11 @@ export function createSupabaseStore({ url, key, client } = {}) {
       if (!isValidId(id)) return false;
       const rows = check('delete', await tasks().delete().eq('id', id).select('id'));
       return rows.length > 0;
+    },
+
+    /** Saves a new order in one call (see reorder_tasks in schema.sql). */
+    async reorder(ids) {
+      check('reorder', await supabase.rpc('reorder_tasks', { task_ids: ids.map(Number) }));
     },
 
     async removeCompleted() {

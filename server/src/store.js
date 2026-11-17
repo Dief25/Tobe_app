@@ -15,7 +15,7 @@ export function createStore({ filePath = null } = {}) {
     if (tasks) return tasks;
     if (!filePath) return (tasks = []);
     try {
-      tasks = JSON.parse(await fs.readFile(filePath, 'utf8'));
+      tasks = JSON.parse(await fs.readFile(filePath, 'utf8')).map((t) => ({ description: '', priority: 'medium', ...t }));
     } catch (err) {
       if (err.code !== 'ENOENT') throw err;
       tasks = [];
@@ -46,10 +46,10 @@ export function createStore({ filePath = null } = {}) {
       return (await load()).find((t) => t.id === id) ?? null;
     },
 
-    async create({ title }) {
+    async create({ title, description = '', priority = 'medium' }) {
       const list = await load();
       const now = new Date().toISOString();
-      const task = { id: randomUUID(), title, completed: false, createdAt: now, updatedAt: now };
+      const task = { id: randomUUID(), title, description, priority, completed: false, createdAt: now, updatedAt: now };
       list.unshift(task);
       await persist();
       return task;
@@ -71,6 +71,13 @@ export function createStore({ filePath = null } = {}) {
       list.splice(index, 1);
       await persist();
       return true;
+    },
+
+    /** Puts tasks in the given order (top to bottom). `ids` lists every task once. */
+    async reorder(ids) {
+      const byId = new Map((await load()).map((t) => [String(t.id), t]));
+      tasks = ids.map((id) => byId.get(String(id)));
+      await persist();
     },
 
     async removeCompleted() {
