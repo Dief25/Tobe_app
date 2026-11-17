@@ -79,7 +79,7 @@ test('returns 404 for unknown tasks and routes', async () => {
 });
 
 test('serves the API with or without the /api prefix', async () => {
-  await request(app).get('/health').expect(200, { status: 'ok' });
+  await request(app).get('/health').expect(200).then((r) => assert.equal(r.body.status, 'ok'));
   await request(app).post('/tasks').send({ title: 'No prefix' }).expect(201);
   const res = await request(app).get('/api/tasks').expect(200);
   assert.equal(res.body[0].title, 'No prefix');

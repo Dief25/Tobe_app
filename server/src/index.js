@@ -6,18 +6,34 @@ import express from 'express';
 import { createApp } from './app.js';
 import { errorHandler, notFound } from './errors.js';
 import { createStore } from './store.js';
+import { createSupabaseStore } from './supabaseStore.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const onVercel = Boolean(process.env.VERCEL);
 
-// Vercel's deployed code is read-only; only the temp directory is writable.
-// NOTE: on Vercel this file is per-instance and temporary — tasks are not
-// durable there until the store is backed by a real database.
-const DATA_FILE =
-  process.env.DATA_FILE ||
-  (onVercel ? path.join(os.tmpdir(), 'tasks.json') : path.join(here, '..', 'data', 'tasks.json'));
+function createTaskStore() {
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY;
 
-const app = createApp(createStore({ filePath: DATA_FILE }));
+  if (url && key) {
+    console.log('Storage: Supabase');
+    return createSupabaseStore({ url, key });
+  }
+  if (url || key) {
+    throw new Error('Set both SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY (or SUPABASE_SECRET_KEY) to use Supabase.');
+  }
+
+  // No Supabase configured: fall back to a JSON file. Vercel's deployed code
+  // is read-only, so there it goes in the temp directory — which is NOT
+  // durable (tasks can vanish), hence the warning.
+  const filePath =
+    process.env.DATA_FILE ||
+    (onVercel ? path.join(os.tmpdir(), 'tasks.json') : path.join(here, '..', 'data', 'tasks.json'));
+  if (onVercel) console.warn('Storage: temporary file. Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY to save tasks permanently.');
+  return createStore({ filePath });
+}
+
+const app = createApp(createTaskStore());
 
 // Local production mode (`npm start`): serve the built React app from Express.
 // On Vercel the client is its own service, so this folder isn't present.

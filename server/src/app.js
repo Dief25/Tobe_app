@@ -11,7 +11,8 @@ export function createApp(store) {
   app.use(express.json({ limit: '10kb' }));
 
   const api = express.Router();
-  api.get('/health', (_req, res) => res.json({ status: 'ok' }));
+  // `storage` shows which backend is live (supabase, file or memory).
+  api.get('/health', (_req, res) => res.json({ status: 'ok', storage: store.kind ?? 'unknown' }));
   api.use(tasksRouter(store));
 
   // Public URLs are /api/*. Some hosts (e.g. a proxy or Vercel rewrite)

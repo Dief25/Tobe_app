@@ -14,7 +14,7 @@ test('Vercel entry exports the app and persists to the data file', async () => {
 
   const { default: app } = await import('../src/index.js');
 
-  await request(app).get('/api/health').expect(200, { status: 'ok' });
+  await request(app).get('/api/health').expect(200).then((r) => assert.equal(r.body.status, 'ok'));
   const { body } = await request(app).post('/api/tasks').send({ title: 'From Vercel' }).expect(201);
   const saved = JSON.parse(readFileSync(process.env.DATA_FILE, 'utf8'));
   assert.equal(saved[0].id, body.id);

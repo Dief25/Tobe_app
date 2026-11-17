@@ -24,8 +24,9 @@ export function tasksRouter(store) {
   // Shared by PUT and PATCH: toggle complete, edit the text, or both.
   const updateTask = asyncHandler(async (req, res) => {
     const changes = parseTaskChanges(req.body);
-    await findOr404(req.params.id);
-    res.json(await store.update(req.params.id, changes));
+    const task = await store.update(req.params.id, changes);
+    if (!task) throw new HttpError(404, `Task not found: ${req.params.id}`);
+    res.json(task);
   });
 
   router
