@@ -25,7 +25,10 @@ A full-stack to-do list with a **React** frontend (Vite) and an **Express** REST
 │       └── components/     Header, TaskForm, TaskList, TaskItem, FilterBar, ProgressRing
 └── server/                 Express API
     ├── src/
-    │   ├── app.js          Routes and validation
+    │   ├── app.js          Express app setup (CORS, JSON parsing, routing)
+    │   ├── routes/tasks.js Task endpoints
+    │   ├── validation.js   Request body validation
+    │   ├── errors.js       Error types and error-handling middleware
     │   ├── store.js        JSON-file task storage
     │   └── index.js        Server entry point
     └── test/               API tests (node:test + supertest)
