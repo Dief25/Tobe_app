@@ -14,6 +14,13 @@ function validateTitle(title) {
 // Wraps async handlers so rejected promises reach the error middleware.
 const asyncHandler = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 
+// JSON 404 that names the path Express actually received, so a wrong
+// path (e.g. from a host rewrite) is visible in the UI and in the logs.
+export function notFound(req, res) {
+  console.warn(`404: no route for ${req.method} ${req.originalUrl}`);
+  res.status(404).json({ error: `API route not found: ${req.method} ${req.originalUrl}` });
+}
+
 export function createApp(store) {
   const app = express();
   app.use(cors());
@@ -87,7 +94,7 @@ export function createApp(store) {
   app.use('/api', router);
   app.use(router);
 
-  app.use('/api', (_req, res) => res.status(404).json({ error: 'Not found.' }));
+  app.use('/api', notFound);
 
   // eslint-disable-next-line no-unused-vars
   app.use((err, _req, res, _next) => {
