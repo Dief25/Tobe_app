@@ -9,7 +9,7 @@ A full-stack to-do list with a **React** frontend (Vite) and an **Express** REST
 - Edit by double-clicking a task or using the pencil button (Enter saves, Esc cancels)
 - Filter by **All / Active / Completed**, with a progress ring and a "Clear completed" action
 - Changes appear instantly and are rolled back if the server rejects them
-- Light and dark themes (follows your system setting), a responsive layout, and keyboard-accessible controls
+- A light blue theme with rounded corners, plus a dark variant (follows your system setting), a responsive layout, and keyboard-accessible controls
 - Tasks are saved to a JSON file on the server, so there's no database to set up
 
 ## Project structure
@@ -21,7 +21,7 @@ A full-stack to-do list with a **React** frontend (Vite) and an **Express** REST
 │       ├── useTasks.js     Task state and server sync
 │       ├── api.js          Fetch wrapper for the REST API
 │       ├── styles.css      Design tokens and styles
-│       └── components/     TaskForm, TaskList, TaskItem, FilterBar, ProgressRing
+│       └── components/     Header, TaskForm, TaskList, TaskItem, FilterBar, ProgressRing
 └── server/                 Express API
     ├── src/
     │   ├── app.js          Routes and validation
@@ -91,6 +91,25 @@ and open port **4000** from the **Ports** tab.
 - Tasks are saved in `server/data/tasks.json` inside the codespace. They survive stopping and restarting the codespace, but are lost when the codespace is deleted. The file is git-ignored, so it is never committed.
 - If you open the codespace from an older branch without the dev container config, run `npm install` yourself before step 3.
 - If you see *"Blocked request. This host is not allowed"*, make sure `client/vite.config.js` still has `allowedHosts: ['.app.github.dev']`.
+
+### Deploying to Vercel
+
+`vercel.json` deploys the repo as one Vercel project with two services:
+
+| Service  | Folder    | Framework | Public path | Purpose                     |
+| -------- | --------- | --------- | ----------- | --------------------------- |
+| `server` | `server/` | Express   | `/api/*`    | The REST API                |
+| `client` | `client/` | Vite      | `/*`        | The React app (static site) |
+
+The browser calls the API at the same-origin path `/api`, so no extra URLs or environment variables are needed. On Vercel, the Express app is exported from `server/src/index.js` instead of calling `listen()`.
+
+> **Storage warning:** On Vercel, tasks are saved to the function's temporary directory. They are **not durable**: they can disappear when the function restarts and may differ between instances. Back the store (`server/src/store.js`) with a database before relying on the deployed app.
+
+To test both services together locally the way Vercel runs them:
+
+```bash
+npx vercel dev
+```
 
 ### Configuration
 
