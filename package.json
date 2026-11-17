@@ -1,0 +1,16 @@
+{
+  "name": "tobe-app",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Tobe — a full-stack to-do list app (React + Express)",
+  "workspaces": ["server", "client"],
+  "scripts": {
+    "dev": "concurrently -n api,web -c blue,magenta \"npm run dev -w server\" \"npm run dev -w client\"",
+    "build": "npm run build -w client",
+    "start": "npm run start -w server",
+    "test": "npm test -w server"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  }
+}
