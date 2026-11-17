@@ -1,0 +1,10 @@
+{
+  "name": "Tobe",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:22",
+  "postCreateCommand": "npm install",
+  "forwardPorts": [5173, 4000],
+  "portsAttributes": {
+    "5173": { "label": "Web app (Vite)", "onAutoForward": "openBrowser" },
+    "4000": { "label": "API (Express)", "onAutoForward": "silent" }
+  }
+}

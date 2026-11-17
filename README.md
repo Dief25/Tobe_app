@@ -56,6 +56,42 @@ Express serves the built React app and the API together at http://localhost:4000
 npm test
 ```
 
+### Running in GitHub Codespaces
+
+The repo includes a dev container config (`.devcontainer/devcontainer.json`). It uses Node.js 22, runs `npm install` when the codespace is created, and forwards the app's ports.
+
+1. On the repository page on GitHub, click **Code** → **Codespaces** → **Create codespace on main** (or choose your branch from the branch picker first).
+2. Wait for the codespace to finish building. Dependencies are installed automatically; you'll see `npm install` run in the terminal.
+3. In the terminal, start the app:
+
+   ```bash
+   npm run dev
+   ```
+
+4. Codespaces opens the web app (port **5173**) in a new browser tab automatically. If it doesn't, open the **Ports** tab, find **Web app (Vite)**, and click the globe icon. The URL looks like `https://<codespace-name>-5173.app.github.dev`.
+
+   You only need port 5173. The frontend sends API calls to the Express server (port 4000) through Vite's proxy, so you don't have to make port 4000 public.
+
+5. To run the tests, open a second terminal (**+** in the terminal panel) and run:
+
+   ```bash
+   npm test
+   ```
+
+To try the production build instead, stop the dev server (Ctrl+C), then run:
+
+```bash
+npm run build && npm start
+```
+
+and open port **4000** from the **Ports** tab.
+
+**Notes**
+
+- Tasks are saved in `server/data/tasks.json` inside the codespace. They survive stopping and restarting the codespace, but are lost when the codespace is deleted. The file is git-ignored, so it is never committed.
+- If you open the codespace from an older branch without the dev container config, run `npm install` yourself before step 3.
+- If you see *"Blocked request. This host is not allowed"*, make sure `client/vite.config.js` still has `allowedHosts: ['.app.github.dev']`.
+
 ### Configuration
 
 | Variable    | Default                  | Description                       |
