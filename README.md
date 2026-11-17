@@ -92,6 +92,25 @@ and open port **4000** from the **Ports** tab.
 - If you open the codespace from an older branch without the dev container config, run `npm install` yourself before step 3.
 - If you see *"Blocked request. This host is not allowed"*, make sure `client/vite.config.js` still has `allowedHosts: ['.app.github.dev']`.
 
+### Deploying to Vercel
+
+`vercel.json` deploys the repo as one Vercel project with two services:
+
+| Service  | Folder    | Framework | Public path | Purpose                     |
+| -------- | --------- | --------- | ----------- | --------------------------- |
+| `server` | `server/` | Express   | `/api/*`    | The REST API                |
+| `client` | `client/` | Vite      | `/*`        | The React app (static site) |
+
+The browser calls the API at the same-origin path `/api`, so no extra URLs or environment variables are needed. On Vercel, the Express app is exported from `server/src/index.js` instead of calling `listen()`.
+
+> **Storage warning:** On Vercel, tasks are saved to the function's temporary directory. They are **not durable**: they can disappear when the function restarts and may differ between instances. Back the store (`server/src/store.js`) with a database before relying on the deployed app.
+
+To test both services together locally the way Vercel runs them:
+
+```bash
+npx vercel dev
+```
+
 ### Configuration
 
 | Variable    | Default                  | Description                       |
