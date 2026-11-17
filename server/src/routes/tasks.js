@@ -1,14 +1,15 @@
 import express from 'express';
 import { HttpError, asyncHandler, methodNotAllowed, requireJson } from '../errors.js';
-import { parseTaskChanges, parseTitle } from '../validation.js';
+import { parseNewTask, parseOrder, parseTaskChanges } from '../validation.js';
 
 /**
  * Task routes, mounted at /api:
  *   GET    /tasks                  list all tasks (newest first)
- *   POST   /tasks                  create a task           { title }
+ *   POST   /tasks                  create a task           { title, description?, priority? }
  *   DELETE /tasks?completed=true   delete all completed tasks
+ *   PUT    /tasks/order            save a new order        { ids: [...] }
  *   GET    /tasks/:id              get one task
- *   PUT    /tasks/:id              update a task           { title?, completed? }
+ *   PUT    /tasks/:id              update a task           { title?, description?, priority?, completed? }
  *   PATCH  /tasks/:id              same as PUT
  *   DELETE /tasks/:id              delete a task
  */
@@ -35,7 +36,7 @@ export function tasksRouter(store) {
       res.json(await store.list());
     }))
     .post(requireJson, asyncHandler(async (req, res) => {
-      const task = await store.create({ title: parseTitle(req.body?.title) });
+      const task = await store.create(parseNewTask(req.body));
       res.status(201).location(`${req.baseUrl}/tasks/${task.id}`).json(task);
     }))
     .delete(asyncHandler(async (req, res) => {
@@ -45,6 +46,22 @@ export function tasksRouter(store) {
       res.json({ deleted: await store.removeCompleted() });
     }))
     .all(methodNotAllowed(['GET', 'POST', 'DELETE']));
+
+  // Must come before /tasks/:id so "order" isn't treated as an id.
+  router
+    .route('/tasks/order')
+    .put(requireJson, asyncHandler(async (req, res) => {
+      const ids = parseOrder(req.body);
+      // The order must list exactly the current tasks; otherwise the list
+      // changed elsewhere (e.g. another tab) and the client should reload.
+      const current = new Map((await store.list()).map((t) => [String(t.id), t.id]));
+      if (ids.length !== current.size || !ids.every((id) => current.has(id))) {
+        throw new HttpError(409, 'The task list has changed. Reload and try again.');
+      }
+      await store.reorder(ids.map((id) => current.get(id)));
+      res.status(204).end();
+    }))
+    .all(methodNotAllowed(['PUT']));
 
   router
     .route('/tasks/:id')

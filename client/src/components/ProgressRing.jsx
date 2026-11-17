@@ -24,7 +24,7 @@ export default function ProgressRing({ done, total }) {
           transform={`rotate(-90 ${SIZE / 2} ${SIZE / 2})`}
         />
       </svg>
-      <span className="progress-label">{pct}%</span>
+      <span className="progress-label" key={pct}>{pct}%</span>
     </div>
   );
 }

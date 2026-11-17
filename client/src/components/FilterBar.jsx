@@ -12,7 +12,7 @@ export default function FilterBar({ filter, onChange, counts }) {
           onClick={() => onChange(key)}
         >
           {label}
-          <span className="count">{counts[key]}</span>
+          <span className="count" key={counts[key]}>{counts[key]}</span>
         </button>
       ))}
     </div>

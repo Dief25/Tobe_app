@@ -1,4 +1,7 @@
-import { useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors } from '@dnd-kit/core';
+import { SortableContext, arrayMove, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { restrictToParentElement, restrictToVerticalAxis } from '@dnd-kit/modifiers';
 import { useTasksContext } from '../TasksContext.jsx';
 import TaskItem from './TaskItem.jsx';
 
@@ -15,7 +18,35 @@ const EMPTY_MESSAGES = {
 };
 
 export default function TaskList({ filter }) {
-  const { tasks, loading, loadError, loadTasks } = useTasksContext();
+  const { tasks, loading, loadError, loadTasks, reorderTasks } = useTasksContext();
+  const [droppedId, setDroppedId] = useState(null);
+  const dropTimer = useRef(null);
+
+  const sensors = useSensors(
+    // Start dragging after a 4px move, so a plain click on the handle does nothing.
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  const titleOf = (id) => tasks.find((t) => t.id === id)?.title ?? 'task';
+  const announcements = {
+    onDragStart: ({ active }) => `Picked up "${titleOf(active.id)}".`,
+    onDragOver: ({ active, over }) => (over ? `"${titleOf(active.id)}" is over "${titleOf(over.id)}".` : undefined),
+    onDragEnd: ({ active, over }) => (over ? `Dropped "${titleOf(active.id)}".` : 'Reorder cancelled.'),
+    onDragCancel: () => 'Reorder cancelled.',
+  };
+
+  function handleDragEnd({ active, over }) {
+    if (!over || active.id === over.id) return;
+    // Move within the full list, so reordering a filtered view keeps hidden tasks in place.
+    const ids = tasks.map((t) => t.id);
+    reorderTasks(arrayMove(ids, ids.indexOf(active.id), ids.indexOf(over.id)));
+    setDroppedId(active.id);
+    clearTimeout(dropTimer.current);
+    dropTimer.current = setTimeout(() => setDroppedId(null), 450);
+  }
+
+  useEffect(() => () => clearTimeout(dropTimer.current), []);
 
   // GET /api/tasks when the list first appears.
   useEffect(() => {
@@ -56,10 +87,20 @@ export default function TaskList({ filter }) {
   }
 
   return (
-    <ul className="task-list">
-      {visible.map((task) => (
-        <TaskItem key={task.id} task={task} />
-      ))}
-    </ul>
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      modifiers={[restrictToVerticalAxis, restrictToParentElement]}
+      onDragEnd={handleDragEnd}
+      accessibility={{ announcements }}
+    >
+      <SortableContext items={visible.map((t) => t.id)} strategy={verticalListSortingStrategy}>
+        <ul className="task-list">
+          {visible.map((task) => (
+            <TaskItem key={task.id} task={task} justDropped={task.id === droppedId} />
+          ))}
+        </ul>
+      </SortableContext>
+    </DndContext>
   );
 }

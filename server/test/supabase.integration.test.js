@@ -68,6 +68,31 @@ test('clear completed deletes only completed tasks', { skip }, async () => {
   await request(app).delete(`/api/tasks/${open.id}`).expect(204);
 });
 
+test('description and priority are stored and updated', { skip }, async () => {
+  const { body: task } = await request(app).post('/api/tasks').send({ title: 'Taxes', description: 'Before Friday', priority: 'urgent' }).expect(201);
+  assert.deepEqual([task.description, task.priority], ['Before Friday', 'urgent']);
+  const res = await request(app).put(`/api/tasks/${task.id}`).send({ description: 'Done early', priority: 'low' }).expect(200);
+  assert.deepEqual([res.body.title, res.body.description, res.body.priority], ['Taxes', 'Done early', 'low']);
+  await request(app).delete(`/api/tasks/${task.id}`).expect(204);
+});
+
+test('reordering is saved and new tasks still go on top', { skip }, async () => {
+  for (const title of ['R1', 'R2', 'R3']) await request(app).post('/api/tasks').send({ title });
+  const before = (await request(app).get('/api/tasks')).body;
+  const reversed = before.map((t) => t.id).reverse();
+
+  await request(app).put('/api/tasks/order').send({ ids: reversed }).expect(204);
+  assert.deepEqual((await request(app).get('/api/tasks')).body.map((t) => t.id), reversed);
+
+  const { body: fresh } = await request(app).post('/api/tasks').send({ title: 'Newest' });
+  const after = (await request(app).get('/api/tasks')).body.map((t) => t.id);
+  assert.deepEqual(after, [fresh.id, ...reversed]);
+
+  for (const t of (await request(app).get('/api/tasks')).body.filter((t) => /^R\d$|^Newest$/.test(t.title))) {
+    await request(app).delete(`/api/tasks/${t.id}`).expect(204);
+  }
+});
+
 test('the public anon key cannot read or write tasks (row level security)', { skip: skip || (!anonKey && 'set SUPABASE_TEST_ANON_KEY') }, async () => {
   const task = (await request(app).post('/api/tasks').send({ title: 'Private' })).body;
   const anon = createClient(url, anonKey, { auth: { persistSession: false } });
@@ -76,6 +101,8 @@ test('the public anon key cannot read or write tasks (row level security)', { sk
   assert.deepEqual(read.data, [], 'anon sees no rows');
   const write = await anon.from('tasks').insert([{ text: 'sneaky' }]);
   assert.equal(write.error?.code, '42501', 'anon insert is rejected');
+  const rpc = await anon.rpc('reorder_tasks', { task_ids: [task.id] });
+  assert.ok(rpc.error, 'anon cannot call reorder_tasks');
 
   await request(app).delete(`/api/tasks/${task.id}`).expect(204);
 });

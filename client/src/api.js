@@ -19,7 +19,11 @@ async function request(path, { body, ...options } = {}) {
   const isJson = res.headers.get('content-type')?.includes('application/json');
   const data = isJson ? await res.json().catch(() => null) : null;
 
-  if (!res.ok) throw new Error(data?.error || `The server returned an error (HTTP ${res.status}).`);
+  if (!res.ok) {
+    const error = new Error(data?.error || `The server returned an error (HTTP ${res.status}).`);
+    error.status = res.status;
+    throw error;
+  }
   // A non-JSON success usually means the request was answered by the
   // frontend (e.g. index.html) instead of the API.
   if (!isJson) throw new Error(`The API did not respond. Requests to ${API_BASE_URL} are not reaching the server.`);
@@ -29,10 +33,12 @@ async function request(path, { body, ...options } = {}) {
 export const api = {
   /** GET /tasks — all tasks, newest first */
   list: () => request('/tasks'),
-  /** POST /tasks — create a task */
-  create: (title) => request('/tasks', { method: 'POST', body: { title } }),
-  /** PUT /tasks/:id — replace a task's title and completed state */
-  replace: (id, { title, completed }) => request(`/tasks/${id}`, { method: 'PUT', body: { title, completed } }),
+  /** POST /tasks — create a task: { title, description?, priority? } */
+  create: (task) => request('/tasks', { method: 'POST', body: task }),
+  /** PUT /tasks/:id — update any of title, description, priority, completed */
+  update: (id, changes) => request(`/tasks/${id}`, { method: 'PUT', body: changes }),
+  /** PUT /tasks/order — save a new order (every task id, top to bottom) */
+  reorder: (ids) => request('/tasks/order', { method: 'PUT', body: { ids } }),
   /** DELETE /tasks/:id */
   remove: (id) => request(`/tasks/${id}`, { method: 'DELETE' }),
   /** DELETE /tasks?completed=true */

@@ -6,7 +6,11 @@ A full-stack to-do list with a **React** frontend (Vite) and an **Express** REST
 ## Features
 
 - Add, edit, delete, and complete tasks
+- Give each task an optional **description** (shown in lighter text under it) and an **importance**: Low, Medium, High or Urgent
+- **Drag to reorder**: hold the grip button next to a task and drag it. The order is saved. With a keyboard, focus the grip, press Space, move with the arrow keys, and press Space again
 - Edit by double-clicking a task or using the pencil button (Enter saves, Esc cancels)
+- **Celebrations**: completing a task bursts sparks from its checkbox; finishing every task sets off a bigger burst and a 🎉 over the 100% ring
+- Springy "pop" animations on clicks, new tasks, deletes, filters and counters (turned off automatically when your system asks for reduced motion)
 - Filter by **All / Active / Completed**, with a progress ring and a "Clear completed" action
 - Changes appear instantly and are rolled back if the server rejects them
 - A light blue theme with rounded corners, plus a dark variant (follows your system setting), a responsive layout, and keyboard-accessible controls
@@ -21,8 +25,9 @@ A full-stack to-do list with a **React** frontend (Vite) and an **Express** REST
 │       ├── TasksContext.jsx  Shares task state and API actions with all components
 │       ├── useTasks.js     Task state and server sync (loading, errors, rollback)
 │       ├── api.js          Fetch wrapper for the REST API
+│       ├── celebrate.js    Spark and confetti bursts
 │       ├── styles.css      Design tokens and styles
-│       └── components/     Header, TaskForm, TaskList, TaskItem, FilterBar, ProgressRing
+│       └── components/     Header, TaskForm, TaskList (drag and drop), TaskItem, Priority, FilterBar, ProgressRing
 └── server/                 Express API
     ├── src/
     │   ├── app.js          Express app setup (CORS, JSON parsing, routing)
@@ -129,6 +134,13 @@ The server stores tasks in Supabase when `SUPABASE_URL` and a secret key are set
 | `text`       | `text`                     | Required, 1–200 characters          |
 | `completed`  | `boolean`                  | Defaults to `false`                 |
 | `created_at` | `timestamp with time zone` | Defaults to `now()`                 |
+| `description`| `text`                     | Optional, up to 500 characters      |
+| `priority`   | `text`                     | `low`, `medium` (default), `high` or `urgent` |
+| `position`   | `double precision`         | Manual order (highest first); new tasks go on top |
+
+It also adds a `reorder_tasks` function that saves a new order in one call; only the server's secret key may run it.
+
+> **Upgrading?** If you created the table with an earlier version of this file, just run the whole file again. It adds the new columns without touching your existing tasks.
 
 It also turns on **row level security** with no policies, so the public (anon/publishable) key can't read or change tasks. Only the server, using the secret key, can.
 
@@ -173,8 +185,9 @@ All endpoints are under `/api` and use JSON.
 | -------- | ---------------------------- | -------------------------------------- | -------------------------- |
 | `GET`    | `/tasks`                     |                                        | List all tasks             |
 | `GET`    | `/tasks/:id`                 |                                        | Get one task               |
-| `POST`   | `/tasks`                     | `{ "title": "Buy milk" }`              | Create a task              |
-| `PUT`    | `/tasks/:id`                 | `{ "title"?: string, "completed"?: boolean }` | Update a task: toggle complete, edit the text, or both |
+| `POST`   | `/tasks`                     | `{ "title": "Buy milk", "description"?: string, "priority"?: "low" \| "medium" \| "high" \| "urgent" }` | Create a task (description defaults to `""`, priority to `"medium"`) |
+| `PUT`    | `/tasks/order`               | `{ "ids": [id, id, ...] }`             | Save a new order, top to bottom. Must list every task once (`409` if the list changed) |
+| `PUT`    | `/tasks/:id`                 | `{ "title"?, "description"?, "priority"?, "completed"? }` | Update any of these fields |
 | `PATCH`  | `/tasks/:id`                 | same as `PUT`                          | Same as `PUT`              |
 | `DELETE` | `/tasks/:id`                 |                                        | Delete a task              |
 | `DELETE` | `/tasks?completed=true`      |                                        | Delete all completed tasks |
@@ -186,6 +199,8 @@ A task looks like this:
 {
   "id": 42,
   "title": "Buy milk",
+  "description": "Oat milk, 2 cartons",
+  "priority": "high",
   "completed": false,
   "createdAt": "2026-11-17T16:30:12.286Z"
 }
@@ -203,6 +218,7 @@ Every error is JSON in the form `{ "error": "Human-readable message" }`:
 | ------ | ---- |
 | `400`  | Invalid input: missing or empty title, `completed` not true/false, unknown fields, or malformed JSON |
 | `404`  | No task with that ID, or an unknown route |
+| `409`  | Reorder request that doesn't list exactly the current tasks |
 | `405`  | Wrong method for a path, e.g. `POST /api/tasks/:id` (the `Allow` header lists valid methods) |
 | `413`  | Request body larger than 10 KB |
 | `415`  | Body sent without `Content-Type: application/json` |
