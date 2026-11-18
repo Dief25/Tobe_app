@@ -1,6 +1,8 @@
 import express from 'express';
 import cors from 'cors';
 import { tasksRouter } from './routes/tasks.js';
+import { listRouter } from './routes/list.js';
+import { identifyList } from './owner.js';
 import { errorHandler, notFound } from './errors.js';
 
 export { notFound } from './errors.js';
@@ -13,7 +15,10 @@ export function createApp(store) {
   const api = express.Router();
   // `storage` shows which backend is live (supabase, file or memory).
   api.get('/health', (_req, res) => res.json({ status: 'ok', storage: store.kind ?? 'unknown' }));
+  // Everything except /health belongs to one private list.
+  api.use(['/tasks', '/list'], identifyList);
   api.use(tasksRouter(store));
+  api.use(listRouter(store));
 
   // Public URLs are /api/*. Some hosts (e.g. a proxy or Vercel rewrite)
   // may forward requests with the /api prefix removed, so accept both.

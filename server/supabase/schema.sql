@@ -34,11 +34,28 @@ begin
   end if;
 end $$;
 
-drop index if exists public.tasks_created_at_idx;
-create index if not exists tasks_position_idx on public.tasks (position desc);
+-- Private lists: each visitor's browser has a random key, and the server
+-- stores its SHA-256 hash here. Tasks are only ever read or changed for
+-- the owner_id of the request. Tasks created before lists existed have no
+-- owner_id, so no one can see them. To delete them:
+--   delete from public.tasks where owner_id is null;
+alter table public.tasks add column if not exists owner_id text;
 
--- Saves a new order in one statement: the first id ends up on top.
-create or replace function public.reorder_tasks(task_ids bigint[])
+drop index if exists public.tasks_created_at_idx;
+drop index if exists public.tasks_position_idx;
+create index if not exists tasks_owner_position_idx on public.tasks (owner_id, position desc);
+
+-- Optional name per list ("Dief" -> "Dief's To-Do List").
+create table if not exists public.lists (
+  owner_id    text        primary key check (char_length(owner_id) = 64),
+  name        text        not null default '' check (char_length(name) <= 40),
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz not null default now()
+);
+
+-- Saves a new order for one list in one statement: the first id ends up on top.
+drop function if exists public.reorder_tasks(bigint[]);
+create or replace function public.reorder_tasks(list_owner text, task_ids bigint[])
 returns void
 language sql
 set search_path = ''
@@ -46,18 +63,19 @@ as $$
   update public.tasks as t
   set position = cardinality(task_ids) - u.ord
   from unnest(task_ids) with ordinality as u(id, ord)
-  where t.id = u.id;
+  where t.id = u.id and t.owner_id = list_owner;
 $$;
 
 -- Only the server (secret / service_role key) may call it.
-revoke execute on function public.reorder_tasks(bigint[]) from public, anon, authenticated;
-grant execute on function public.reorder_tasks(bigint[]) to service_role;
+revoke execute on function public.reorder_tasks(text, bigint[]) from public, anon, authenticated;
+grant execute on function public.reorder_tasks(text, bigint[]) to service_role;
 
 -- Lock the table down. With row level security on and no policies, the
 -- public "anon"/"publishable" key can't read or change tasks through
 -- Supabase's API. The Express server uses the secret (service_role) key,
 -- which bypasses RLS, so all access goes through your API's validation.
 alter table public.tasks enable row level security;
+alter table public.lists enable row level security;
 
 -- Tell Supabase's API to pick up the changes right away.
 notify pgrst, 'reload schema';

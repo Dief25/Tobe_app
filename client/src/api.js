@@ -1,6 +1,8 @@
 // Base URL of the Express API. Set VITE_API_URL to point at a different
 // server (e.g. http://localhost:4000/api); by default the API is expected
 // on the same origin under /api (Vite's dev proxy, `npm start`, Vercel).
+import { getListKey } from './listKey.js';
+
 export const API_BASE_URL = (import.meta.env.VITE_API_URL || '/api').replace(/\/+$/, '');
 
 async function request(path, { body, ...options } = {}) {
@@ -8,7 +10,11 @@ async function request(path, { body, ...options } = {}) {
   try {
     res = await fetch(`${API_BASE_URL}${path}`, {
       ...options,
-      headers: body ? { 'Content-Type': 'application/json' } : undefined,
+      headers: {
+        // Identifies this browser's private list (see listKey.js).
+        'X-List-Key': getListKey(),
+        ...(body ? { 'Content-Type': 'application/json' } : {}),
+      },
       body: body ? JSON.stringify(body) : undefined,
     });
   } catch {
@@ -41,6 +47,10 @@ export const api = {
   reorder: (ids) => request('/tasks/order', { method: 'PUT', body: { ids } }),
   /** DELETE /tasks/:id */
   remove: (id) => request(`/tasks/${id}`, { method: 'DELETE' }),
+  /** GET /list — this list's optional name */
+  getList: () => request('/list'),
+  /** PUT /list — set or clear the name ("" clears it) */
+  setListName: (name) => request('/list', { method: 'PUT', body: { name } }),
   /** DELETE /tasks?completed=true */
   clearCompleted: () => request('/tasks?completed=true', { method: 'DELETE' }),
 };
