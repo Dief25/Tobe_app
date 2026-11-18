@@ -128,7 +128,7 @@ and open port **4000** from the **Ports** tab.
 
 The browser calls the API at the same-origin path `/api`, so no extra URLs or environment variables are needed. On Vercel, the Express app is exported from `server/src/index.js` instead of calling `listen()`.
 
-> **Storage:** Set up Supabase (next section) so tasks are saved permanently. Without it, the deployed API falls back to a temporary file, and tasks can disappear when Vercel restarts the function.
+> **Storage:** The deployed app needs Supabase (next section). Without it, the API doesn't silently use a temporary file. Every request returns a `503` saying which environment variables are missing, and the app shows that message.
 
 To test both services together locally the way Vercel runs them:
 
@@ -138,7 +138,7 @@ npx vercel dev
 
 ### Database: Supabase (PostgreSQL)
 
-The server stores tasks in Supabase when `SUPABASE_URL` and a secret key are set. Otherwise it uses a local JSON file. The API and the React app work the same either way.
+The server stores tasks in Supabase when `SUPABASE_URL` and a secret key are set. When running locally without them, it uses a JSON file. On Vercel without them, it reports that the database isn't connected.
 
 **1. Create the table.** In your Supabase project, open **SQL Editor** → **New query**, paste the contents of [`server/supabase/schema.sql`](server/supabase/schema.sql), and click **Run**. This creates:
 
@@ -172,7 +172,7 @@ It also turns on **row level security** with no policies, so the public (anon/pu
 
 Apply them to **Production and Preview**, then **redeploy** (variables only take effect on a new deployment).
 
-**4. Check it.** Open `https://<your-app>.vercel.app/api/health`. It should show `{"status":"ok","storage":"supabase"}`. If it says `"storage":"file"`, the variables aren't set for that deployment.
+**4. Check it.** Open `https://<your-app>.vercel.app/api/health`. It should show `{"status":"ok","storage":"supabase"}`. If it shows `"storage":"not-configured"`, the `problem` field names the missing variables. Add them and redeploy.
 
 **Running locally against Supabase:** set the same two variables before starting the server, for example:
 

@@ -1,4 +1,3 @@
-import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { existsSync } from 'node:fs';
@@ -7,30 +6,40 @@ import { createApp } from './app.js';
 import { errorHandler, notFound } from './errors.js';
 import { createStore } from './store.js';
 import { createSupabaseStore } from './supabaseStore.js';
+import { createUnconfiguredStore } from './unconfiguredStore.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const onVercel = Boolean(process.env.VERCEL);
 
 function createTaskStore() {
-  const url = process.env.SUPABASE_URL;
+  // NEXT_PUBLIC_SUPABASE_URL is what Vercel's Supabase integration sets.
+  const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY;
 
   if (url && key) {
     console.log('Storage: Supabase');
     return createSupabaseStore({ url, key });
   }
+
+  const missing = [!url && 'SUPABASE_URL', !key && 'SUPABASE_SERVICE_ROLE_KEY'].filter(Boolean);
+
+  // On Vercel, never fall back to a file silently: the deployed code is
+  // read-only, and a temp file is per-instance and wiped on restart, so
+  // tasks would vanish on refresh. Fail clearly instead (unless DATA_FILE
+  // is set on purpose).
+  if (onVercel && !process.env.DATA_FILE) {
+    const problem =
+      `The database isn't connected. In Vercel, add ${missing.join(' and ')} under ` +
+      'Settings → Environment Variables, then redeploy.';
+    console.error(`Storage: not configured. ${problem}`);
+    return createUnconfiguredStore(problem);
+  }
   if (url || key) {
-    throw new Error('Set both SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY (or SUPABASE_SECRET_KEY) to use Supabase.');
+    throw new Error(`Supabase is half configured: also set ${missing.join(' and ')}.`);
   }
 
-  // No Supabase configured: fall back to a JSON file. Vercel's deployed code
-  // is read-only, so there it goes in the temp directory — which is NOT
-  // durable (tasks can vanish), hence the warning.
-  const filePath =
-    process.env.DATA_FILE ||
-    (onVercel ? path.join(os.tmpdir(), 'tasks.json') : path.join(here, '..', 'data', 'tasks.json'));
-  if (onVercel) console.warn('Storage: temporary file. Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY to save tasks permanently.');
-  return createStore({ filePath });
+  // Local development: a JSON file next to the server.
+  return createStore({ filePath: process.env.DATA_FILE || path.join(here, '..', 'data', 'tasks.json') });
 }
 
 const app = createApp(createTaskStore());

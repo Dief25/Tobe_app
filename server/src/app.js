@@ -14,7 +14,10 @@ export function createApp(store) {
 
   const api = express.Router();
   // `storage` shows which backend is live (supabase, file or memory).
-  api.get('/health', (_req, res) => res.json({ status: 'ok', storage: store.kind ?? 'unknown' }));
+  api.get('/health', (_req, res) => {
+    if (store.problem) return res.status(503).json({ status: 'error', storage: store.kind, problem: store.problem });
+    res.json({ status: 'ok', storage: store.kind ?? 'unknown' });
+  });
   // Everything except /health belongs to one private list.
   api.use(['/tasks', '/list'], identifyList);
   api.use(tasksRouter(store));
