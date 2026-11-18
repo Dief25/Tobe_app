@@ -241,6 +241,19 @@ h1 { margin: 4px 0; font-size: 32px; font-weight: 700; letter-spacing: -0.03em; 
 .link-button { background: none; border: none; color: var(--muted); font-size: 14px; padding: 6px 12px; border-radius: var(--radius-pill); transition: background 0.15s, color 0.15s, scale 0.35s var(--spring); }
 .link-button:hover { color: var(--danger); background: var(--danger-soft); }
 
+/* ---------- List name ---------- */
+.header-text { min-width: 0; flex: 1; }
+.title-row { display: flex; align-items: center; gap: 6px; }
+.title-row h1 { min-width: 0; overflow-wrap: anywhere; animation: pop-in 0.4s var(--spring); transform-origin: left center; }
+.title-edit { flex-shrink: 0; opacity: 0.7; }
+.title-edit:hover, .title-edit:focus-visible { opacity: 1; }
+.name-form { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 8px 0 6px; animation: pop-in 0.3s var(--spring); }
+.name-input { flex: 1 1 200px; padding: 9px 14px; font-size: 16px; font-weight: 600; }
+.name-actions { display: flex; gap: 6px; }
+.name-hint { width: 100%; margin: 0; font-size: 13px; color: var(--muted); }
+.name-hint strong { color: var(--text); font-weight: 600; }
+.privacy-note { margin: 16px 0 0; text-align: center; font-size: 12.5px; color: var(--muted); }
+
 /* ---------- Pop animations ---------- */
 @keyframes pop-in { 0% { scale: 0.85; opacity: 0; } 60% { scale: 1.03; opacity: 1; } 100% { scale: 1; opacity: 1; } }
 @keyframes pop { 0% { scale: 1; } 35% { scale: 0.9; } 70% { scale: 1.08; } 100% { scale: 1; } }

@@ -43,6 +43,10 @@ function TodoApp() {
             </button>
           </footer>
         )}
+
+        <p className="privacy-note">
+          <span aria-hidden="true">🔒</span> Your list is private and saved in this browser. Other visitors have their own.
+        </p>
       </main>
     </div>
   );

@@ -27,7 +27,8 @@ function check(operation, { data, error }) {
 
 /**
  * Task store backed by a Supabase `tasks` table (see supabase/schema.sql).
- * Same interface as the JSON-file store in store.js.
+ * Same interface as the JSON-file store in store.js: every method takes
+ * the owner (the hashed list key) and only touches that owner's rows.
  */
 export function createSupabaseStore({ url, key, client } = {}) {
   const supabase =
@@ -37,62 +38,76 @@ export function createSupabaseStore({ url, key, client } = {}) {
       auth: { persistSession: false, autoRefreshToken: false },
     });
   const tasks = () => supabase.from('tasks');
+  const lists = () => supabase.from('lists');
 
   return {
     kind: 'supabase',
 
     // Highest position first. New tasks default to a high position (the
     // current time), so they appear at the top until the list is reordered.
-    async list() {
+    async list(owner) {
       const rows = check(
         'list',
         await tasks()
           .select(COLUMNS)
+          .eq('owner_id', owner)
           .order('position', { ascending: false })
           .order('id', { ascending: false }),
       );
       return rows.map(toTask);
     },
 
-    async get(id) {
+    async get(owner, id) {
       if (!isValidId(id)) return null;
-      const row = check('get', await tasks().select(COLUMNS).eq('id', id).maybeSingle());
+      const row = check('get', await tasks().select(COLUMNS).eq('owner_id', owner).eq('id', id).maybeSingle());
       return row ? toTask(row) : null;
     },
 
-    async create({ title, description = '', priority = 'medium' }) {
+    async create(owner, { title, description = '', priority = 'medium' }) {
       const row = check(
         'create',
-        await tasks().insert([{ text: title, description, priority, completed: false }]).select(COLUMNS).single(),
+        await tasks().insert([{ owner_id: owner, text: title, description, priority, completed: false }]).select(COLUMNS).single(),
       );
       return toTask(row);
     },
 
-    async update(id, changes) {
+    async update(owner, id, changes) {
       if (!isValidId(id)) return null;
       const patch = {};
       if (changes.title !== undefined) patch.text = changes.title;
       if (changes.description !== undefined) patch.description = changes.description;
       if (changes.priority !== undefined) patch.priority = changes.priority;
       if (changes.completed !== undefined) patch.completed = changes.completed;
-      const row = check('update', await tasks().update(patch).eq('id', id).select(COLUMNS).maybeSingle());
+      const row = check('update', await tasks().update(patch).eq('owner_id', owner).eq('id', id).select(COLUMNS).maybeSingle());
       return row ? toTask(row) : null;
     },
 
-    async remove(id) {
+    async remove(owner, id) {
       if (!isValidId(id)) return false;
-      const rows = check('delete', await tasks().delete().eq('id', id).select('id'));
+      const rows = check('delete', await tasks().delete().eq('owner_id', owner).eq('id', id).select('id'));
       return rows.length > 0;
     },
 
     /** Saves a new order in one call (see reorder_tasks in schema.sql). */
-    async reorder(ids) {
-      check('reorder', await supabase.rpc('reorder_tasks', { task_ids: ids.map(Number) }));
+    async reorder(owner, ids) {
+      check('reorder', await supabase.rpc('reorder_tasks', { list_owner: owner, task_ids: ids.map(Number) }));
     },
 
-    async removeCompleted() {
-      const rows = check('delete completed', await tasks().delete().eq('completed', true).select('id'));
+    async removeCompleted(owner) {
+      const rows = check('delete completed', await tasks().delete().eq('owner_id', owner).eq('completed', true).select('id'));
       return rows.length;
+    },
+
+    async getListName(owner) {
+      const row = check('get list name', await lists().select('name').eq('owner_id', owner).maybeSingle());
+      return row?.name ?? '';
+    },
+
+    async setListName(owner, name) {
+      check(
+        'set list name',
+        await lists().upsert({ owner_id: owner, name, updated_at: new Date().toISOString() }, { onConflict: 'owner_id' }),
+      );
     },
   };
 }

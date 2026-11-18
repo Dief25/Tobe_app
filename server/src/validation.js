@@ -87,3 +87,15 @@ export function parseOrder(body) {
   if (new Set(ids.map(String)).size !== ids.length) throw new HttpError(400, '"ids" must not contain duplicates.');
   return ids.map(String);
 }
+
+export const MAX_LIST_NAME_LENGTH = 40;
+
+/** Body of PUT /list: `{ name }`. An empty name means "no name" (shows "My Tasks"). */
+export function parseListName(body) {
+  requireObject(body);
+  rejectUnknown(body, ['name']);
+  if (typeof body.name !== 'string') throw new HttpError(400, 'Name must be a string.');
+  const name = body.name.trim();
+  if (name.length > MAX_LIST_NAME_LENGTH) throw new HttpError(400, `Name must be at most ${MAX_LIST_NAME_LENGTH} characters.`);
+  return name;
+}

@@ -19,6 +19,9 @@ export function useTasks() {
   const [pendingIds, setPendingIds] = useState(() => new Set());
   const tasksRef = useRef(tasks);
   tasksRef.current = tasks;
+  const [listName, setListName] = useState('');
+  const listNameRef = useRef(listName);
+  listNameRef.current = listName;
 
   const markPending = (id, on) =>
     setPendingIds((current) => {
@@ -37,6 +40,31 @@ export function useTasks() {
       setLoadError(err.message);
     } finally {
       setLoading(false);
+    }
+  }, []);
+
+  // GET /api/list. The name is optional, so if this fails the title just
+  // stays "My Tasks"; the task list shows any real connection problem.
+  const loadListName = useCallback(async () => {
+    try {
+      setListName((await api.getList()).name);
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  // PUT /api/list
+  const saveListName = useCallback(async (name) => {
+    const previous = listNameRef.current;
+    setError(null);
+    setListName(name);
+    try {
+      setListName((await api.setListName(name)).name);
+      return true;
+    } catch (err) {
+      setListName(previous);
+      setError(`Couldn't save the name: ${err.message}`);
+      return false;
     }
   }, []);
 
@@ -143,6 +171,9 @@ export function useTasks() {
 
   return {
     tasks,
+    listName,
+    loadListName,
+    saveListName,
     loading,
     loadError,
     error,

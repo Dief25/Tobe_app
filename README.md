@@ -5,6 +5,8 @@ A full-stack to-do list with a **React** frontend (Vite) and an **Express** REST
 
 ## Features
 
+- **Private lists, no sign-up**: every visitor automatically gets their own list. Nobody else can see or change it
+- **Name your list**: click the pencil next to the title and type your name, so "My Tasks" becomes "Dief's To-Do List"
 - Add, edit, delete, and complete tasks
 - Give each task an optional **description** (shown in lighter text under it) and an **importance**: Low, Medium, High or Urgent
 - **Drag to reorder**: hold the grip button next to a task and drag it. The order is saved. With a keyboard, focus the grip, press Space, move with the arrow keys, and press Space again
@@ -25,6 +27,7 @@ A full-stack to-do list with a **React** frontend (Vite) and an **Express** REST
 │       ├── TasksContext.jsx  Shares task state and API actions with all components
 │       ├── useTasks.js     Task state and server sync (loading, errors, rollback)
 │       ├── api.js          Fetch wrapper for the REST API
+│       ├── listKey.js      Creates and remembers this browser's private list key
 │       ├── celebrate.js    Spark and confetti bursts
 │       ├── styles.css      Design tokens and styles
 │       └── components/     Header, TaskForm, TaskList (drag and drop), TaskItem, Priority, FilterBar, ProgressRing
@@ -34,12 +37,23 @@ A full-stack to-do list with a **React** frontend (Vite) and an **Express** REST
     │   ├── routes/tasks.js Task endpoints
     │   ├── validation.js   Request body validation
     │   ├── errors.js       Error types and error-handling middleware
+    │   ├── owner.js        Reads the list key from each request
+    │   ├── routes/list.js  The list's optional name
     │   ├── store.js        JSON-file task storage (local fallback)
     │   ├── supabaseStore.js  Supabase (PostgreSQL) task storage
     │   └── index.js        Server entry point
     ├── supabase/schema.sql SQL that creates the tasks table in Supabase
     └── test/               API tests (node:test + supertest)
 ```
+
+## How private lists work
+
+There are no accounts. On the first visit, the browser creates a long random **list key** and saves it in `localStorage`. Every API request sends it in an `X-List-Key` header. The server stores only a SHA-256 hash of the key and uses it to scope every query, so each request can only read and change its own list. Asking for another list's task returns `404`.
+
+Because the list belongs to the browser:
+
+- A different device or browser, a private window, or clearing the browser's site data opens a **new, empty list**. The old list can't be recovered without its key.
+- Tasks created before private lists existed have no owner, so no list shows them. To delete them in Supabase, run `delete from public.tasks where owner_id is null;`.
 
 ## Getting started
 
@@ -135,10 +149,11 @@ The server stores tasks in Supabase when `SUPABASE_URL` and a secret key are set
 | `completed`  | `boolean`                  | Defaults to `false`                 |
 | `created_at` | `timestamp with time zone` | Defaults to `now()`                 |
 | `description`| `text`                     | Optional, up to 500 characters      |
+| `owner_id`   | `text`                     | SHA-256 hash of the list key that owns the task |
 | `priority`   | `text`                     | `low`, `medium` (default), `high` or `urgent` |
 | `position`   | `double precision`         | Manual order (highest first); new tasks go on top |
 
-It also adds a `reorder_tasks` function that saves a new order in one call; only the server's secret key may run it.
+It also creates a `lists` table (`owner_id`, `name`) for list names, and a `reorder_tasks` function that saves a new order in one call; only the server's secret key may run it.
 
 > **Upgrading?** If you created the table with an earlier version of this file, just run the whole file again. It adds the new columns without touching your existing tasks.
 
@@ -179,7 +194,7 @@ SUPABASE_URL=https://<project>.supabase.co SUPABASE_SERVICE_ROLE_KEY=<secret key
 
 ## API
 
-All endpoints are under `/api` and use JSON.
+All endpoints are under `/api` and use JSON. Except `/health`, every request must include an `X-List-Key` header: 32–128 characters of letters, digits, `-` or `_`. Without one the server returns `401`. Each key sees only its own tasks and name.
 
 | Method   | Endpoint                     | Body                                   | Description                |
 | -------- | ---------------------------- | -------------------------------------- | -------------------------- |
@@ -191,6 +206,8 @@ All endpoints are under `/api` and use JSON.
 | `PATCH`  | `/tasks/:id`                 | same as `PUT`                          | Same as `PUT`              |
 | `DELETE` | `/tasks/:id`                 |                                        | Delete a task              |
 | `DELETE` | `/tasks?completed=true`      |                                        | Delete all completed tasks |
+| `GET`    | `/list`                      |                                        | This list's name: `{ "name": "Dief" }` (`""` if not set) |
+| `PUT`    | `/list`                      | `{ "name": string }`                   | Set the name (up to 40 characters); `""` clears it |
 | `GET`    | `/health`                    |                                        | Health check; `storage` shows `supabase` or `file` |
 
 A task looks like this:
@@ -217,7 +234,8 @@ Every error is JSON in the form `{ "error": "Human-readable message" }`:
 | Status | When |
 | ------ | ---- |
 | `400`  | Invalid input: missing or empty title, `completed` not true/false, unknown fields, or malformed JSON |
-| `404`  | No task with that ID, or an unknown route |
+| `401`  | Missing or invalid `X-List-Key` header |
+| `404`  | No task with that ID in your list, or an unknown route |
 | `409`  | Reorder request that doesn't list exactly the current tasks |
 | `405`  | Wrong method for a path, e.g. `POST /api/tasks/:id` (the `Allow` header lists valid methods) |
 | `413`  | Request body larger than 10 KB |
